@@ -71,10 +71,17 @@ router
       res.sendStatus(400);
     }
   })
-  .delete((req, res) => {
-    const book = books.find(b => b.id === req.params.id);
-    if (book) {
-      res.sendStatus(202);
+  .delete(async (req, res) => {
+    // const book = books.find(b => b.id === req.params.id);
+    const book = await Book.findOne({
+      where: { id: req.params.id },
+      includes: [Author]
+    })
+    const result = await Book.destroy({
+      where: { id: req.param.id }
+    })
+    if (result === 1) {
+      res.sendStatus(202).json(book);
     } else {
       res.sendStatus(400);
     }
