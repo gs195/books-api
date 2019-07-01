@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { books } = require("../data/db.json");
 const { Author, Book } = require("../models");
+const { sequelize } = require("../models/index");
 
 const filterBooksBy = (property, value) => {
   return books.filter(b => b[property] === value);
@@ -40,32 +41,90 @@ router
       res.json(books);
     } else {
       const books = await Book.findAll({
-      include: [Author]
-      })
+        include: [Author]
+      });
       res.json(books);
     }
   })
+
   .post(verifyToken, async (req, res) => {
-    const {title, name} = req.body
-    //save book to the DB
-    const newBook = await Book.create({
-      title:title,
-      author:{name:name}
-    }, {include: [Author]})
-    res.status(201).json(newBook);
+    const { title, name } = req.body;
+
+    try {
+      //start of transaction
+      await sequelize.transaction(async t => {
+        //find if author exist if not create
+        const [foundAuthor] = await Author.findOrCreate({ //square brackets for foundUser as we are destructuring 
+          where: { name: name },
+          transaction: t
+        });
+        //create a book w/o author
+        const newBook = await Book.create({ title: title }, { transaction: t });
+        await newBook.setAuthor(foundAuthor, { transaction: t });
+        //query again
+        const newBookWithAuthor = await Book.findOne({
+          where: { id: newBook.id },
+          include: [Author],
+          transaction: t
+        });
+        res.status(201).json(newBookWithAuthor);
+      }); // end of transaction
+    } catch (ex) {
+      res.status(400).json({
+        // err: `Author with name = [${req.body.name}] doesn't exist.`
+        err: `An unexpected error has occured ${ex.message}`
+      });
+    }
+
+    // const { title, name } = req.body;
+    // try {
+    //   //start of transaction
+    //   await sequelize.transaction(async t => {
+    //     //find if author exist if not create
+    //     const [foundAuthor] = await Author.findOrCreate({
+    //       where: { name: name },
+    //       transaction: t
+    //     });
+    //     //create a book w/o author
+    //     const newBook = await Book.create({ title: title }, { transaction: t });
+    //     throw new Error("Error out");
+    //     await newBook.setAuthor(foundAuthor, { transaction: t });
+    //     //query again
+    //     const newBookWithAuthor = await Book.findOne({
+    //       where: { id: newBook.id },
+    //       include: [Author],
+    //       transaction: t
+    //     });
+    //     res.status(201).json(newBookWithAuthor);
+    //   }); // end of transaction
+    // } catch (ex) {
+    //   res.status(400).json({
+    //     err: `Author with name = [${req.body.author}] doesn't exist.`
+    //   });
+    // }
   });
+
+// .post(verifyToken, async (req, res) => {
+//   const {title, name} = req.body
+//   //save book to the DB
+//   const newBook = await Book.create({
+//     title:title,
+//     author:{name:name}
+//   }, {include: [Author]})
+//   res.status(201).json(newBook);
+// });
 
 router
   .route("/:id")
   .put(async (req, res) => {
     const book = await Book.findOne({
-      where: {id: req.params.id},
+      where: { id: req.params.id },
       include: [Author]
-    })
+    });
     if (book) {
-    const updated = await book.update({
-      title: req.body.title
-    })
+      const updated = await book.update({
+        title: req.body.title
+      });
       res.status(202).json(updated);
     } else {
       res.sendStatus(400);
@@ -76,10 +135,10 @@ router
     const book = await Book.findOne({
       where: { id: req.params.id },
       includes: [Author]
-    })
+    });
     const result = await Book.destroy({
       where: { id: req.param.id }
-    })
+    });
     if (result === 1) {
       res.sendStatus(202).json(book);
     } else {
