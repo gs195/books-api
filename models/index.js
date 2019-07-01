@@ -1,14 +1,17 @@
 const Sequelize = require("sequelize");
 
-const currentEnv = process.env.NODE_ENV || 'development'; //refer to scripts start in package.json
+const currentEnv = process.env.NODE_ENV || "development"; //refer to scripts start in package.json
+let sequelize;
 
-if(currentEnv === 'production'){
-    const sequelize = new Sequelize(process.env.DATABASE_URL, { dialect: "postgres" })
+if (currentEnv === "production") {
+  const sequelize = new Sequelize(process.env.DATABASE_URL, {
+    dialect: "postgres"
+  });
 } else {
-    //create instance, this can only connect to local db, not production db
-    const sequelize = new Sequelize("booksapi", "postgres", "", {
-      dialect: "postgres"
-    });
+  //create instance, this can only connect to local db, not production db
+  const sequelize = new Sequelize("booksapi", "postgres", "", {
+    dialect: "postgres"
+  });
 }
 
 //initialize models
